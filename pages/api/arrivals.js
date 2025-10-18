@@ -1,4 +1,16 @@
-// Arrivals + Line Status with tube-only filtering and child-platform fallback
+async function resolveTubeChildren(id, params){
+  const spUrl = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`;
+  const spRes = await fetch(spUrl);
+  const sp = await spRes.json();
+  const children = (sp.children || []).filter(c => {
+    const modes = (c.modes || []).map(x=>String(x).toLowerCase());
+    const stopType = String(c.stopType||'').toLowerCase();
+    const idok = String(c.id||'').startsWith('940G');
+    return idok && modes.includes('tube') && (stopType.includes('naptanmetrostation') || stopType.includes('naptanmetroplatform'));
+  });
+  return children.map(c => ({ id: c.id, name: c.commonName || c.name, raw: c }));
+}
+
 export default async function handler(req, res){
   const id = req.query.id;
   if(!id) return res.status(400).json({ error:'missing id' });
@@ -14,19 +26,18 @@ export default async function handler(req, res){
   }
 
   try{
-    let arrivals = await fetchArrivalsFor(id);
+    let targetIds = [];
+    if (String(id).startsWith('940G')) {
+      targetIds = [id];
+    } else {
+      const kids = await resolveTubeChildren(id, params);
+      targetIds = kids.map(k=>k.id);
+    }
 
-    if (!arrivals.length){
-      const spUrl = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`;
-      const spRes = await fetch(spUrl);
-      const sp = await spRes.json();
-      const children = (sp.children || []).filter(c => {
-        const modes = (c.modes || []).map(x=>String(x).toLowerCase());
-        const place = String(c.placeType||'').toLowerCase();
-        return modes.includes('tube') && (place.includes('naptanmetroplatform') || place.includes('naptanmetrostation'));
-      });
-      const chunks = await Promise.all(children.map(c => fetchArrivalsFor(c.id)));
-      arrivals = chunks.flat();
+    let arrivals = [];
+    for (const tid of targetIds) {
+      const a = await fetchArrivalsFor(tid);
+      arrivals = arrivals.concat(a);
     }
 
     arrivals.sort((a,b)=>{
@@ -41,11 +52,7 @@ export default async function handler(req, res){
       const statusUrl = `https://api.tfl.gov.uk/Line/${lineIds.join(',')}/Status${params.toString()?`?${params.toString()}`:''}`;
       const rs = await fetch(statusUrl);
       const lines = await rs.json();
-      statuses = (Array.isArray(lines)?lines:[]).map(l => ({
-        id: l.id,
-        name: l.name,
-        statusSeverityDescription: l.lineStatuses?.[0]?.statusSeverityDescription
-      }));
+      statuses = (Array.isArray(lines)?lines:[]).map(l => ({ id: l.id, name: l.name, statusSeverityDescription: l.lineStatuses?.[0]?.statusSeverityDescription }));
     }
 
     res.status(200).json({ arrivals, statuses });
