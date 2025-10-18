@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import LineBadge from "./LineBadge";
 
+// ---- Client-side cache (simple TTL Map) ----
+const CACHE = new Map();
+const TTL = 2 * 60 * 1000; // 2 minutes
+function setCache(key, value){ CACHE.set(key, { value, ts: Date.now() }); }
+function getCache(key){
+  const e = CACHE.get(key);
+  if(!e) return null;
+  if(Date.now() - e.ts > TTL){ CACHE.delete(key); return null; }
+  return e.value;
+}
+
 function cleanName(name){
   if(!name) return name;
   return name.replace(/\s*\(?Underground Station\)?/gi, '').trim();
@@ -31,6 +42,12 @@ function summarizeLinesLong(lines){
   if(!Array.isArray(lines) || !lines.length) return '';
   return lines.map(l=>l.name).join(' / ');
 }
+function norm(s){
+  return String(s||'').toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export default function StationSearch({ onSelect }) {
   const [q, setQ] = useState("");
@@ -46,21 +63,43 @@ export default function StationSearch({ onSelect }) {
   },[]);
 
   useEffect(() => {
-    if (!q || q.length < 3) { setResults([]); return; } // require 3+ chars to reduce calls
+    const qq = q;
+    if (!qq || qq.length < 3) { setResults([]); return; }
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const key = norm(qq);
+      const cached = getCache(key);
+      if (cached) {
+        setResults(cached);
+        setOpen(true);
+        return;
+      }
+      const res = await fetch(`/api/search?q=${encodeURIComponent(qq)}`);
       const data = await res.json();
-      const list = (data.results || []).slice(0, 12).map(r => {
+      const listRaw = (data.results || []).slice(0, 12).map(r => {
         const name = cleanName(r.name);
         const short = summarizeLinesShort(r.lines);
         const long = summarizeLinesLong(r.lines);
         const displayName = short ? `${name} (${short})` : name;
         return { ...r, name, _short: short, _long: long, displayName };
       });
+
+      // Prefix-first sorting (client-side): names starting with query rank first
+      const qn = norm(qq);
+      const list = listRaw.slice().sort((a,b)=>{
+        const an = norm(a.displayName), bn = norm(b.displayName);
+        const ap = an.startsWith(qn) ? 0 : 1;
+        const bp = bn.startsWith(qn) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        // secondary: shorter name first
+        if (an.length !== bn.length) return an.length - bn.length;
+        return an.localeCompare(bn);
+      });
+
+      setCache(key, list);
       setResults(list);
       setOpen(true);
-    }, 380);
+    }, 320);
   }, [q]);
 
   return (
