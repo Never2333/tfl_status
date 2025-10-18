@@ -8,6 +8,7 @@ export default function StationSearch({ onStationSelect, currentStation }) {
   const [loading, setLoading] = useState(false);
   const timeoutRef = useRef(null);
 
+  // 当有当前车站时，显示车站名称
   useEffect(() => {
     if (currentStation?.name) {
       setQuery(currentStation.name);
@@ -15,7 +16,7 @@ export default function StationSearch({ onStationSelect, currentStation }) {
   }, [currentStation]);
 
   const searchStations = async (searchQuery) => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
       setSuggestions([]);
       return;
     }
@@ -26,7 +27,7 @@ export default function StationSearch({ onStationSelect, currentStation }) {
       setSuggestions(res.data);
       setShowSuggestions(true);
     } catch (err) {
-      console.error(err);
+      console.error("搜索车站失败:", err);
       setSuggestions([]);
     }
     setLoading(false);
@@ -41,14 +42,19 @@ export default function StationSearch({ onStationSelect, currentStation }) {
       clearTimeout(timeoutRef.current);
     }
 
-    timeoutRef.current = setTimeout(() => {
-      searchStations(value);
-    }, 300);
+    if (value.length >= 2) {
+      timeoutRef.current = setTimeout(() => {
+        searchStations(value);
+      }, 300);
+    } else {
+      setSuggestions([]);
+    }
   };
 
   const handleSuggestionClick = (station) => {
     setQuery(station.name);
     setShowSuggestions(false);
+    console.log("选择的车站:", station); // 调试信息
     onStationSelect(station);
   };
 
@@ -64,7 +70,7 @@ export default function StationSearch({ onStationSelect, currentStation }) {
         placeholder="搜索地铁站 (例如: Oxford Circus)"
         value={query}
         onChange={handleInputChange}
-        onFocus={() => setShowSuggestions(true)}
+        onFocus={() => query.length >= 2 && setShowSuggestions(true)}
         onBlur={handleBlur}
         className="w-full p-4 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
       />
@@ -91,6 +97,12 @@ export default function StationSearch({ onStationSelect, currentStation }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {showSuggestions && suggestions.length === 0 && query.length >= 2 && !loading && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 text-gray-500">
+          未找到匹配的车站
         </div>
       )}
     </div>
