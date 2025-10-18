@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import DepartureBoard from "../components/DepartureBoard";
 import StationSearch from "../components/StationSearch";
+import QuickStationSelect from "../components/QuickStationSelect";
 import axios from "axios";
 
 export default function Home() {
@@ -10,42 +11,55 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState("");
 
-  const fetchArrivals = async () => {
-    if (!station) return;
+  const fetchArrivals = async (stationId, stationName) => {
+    if (!stationId) return;
     
     setLoading(true);
     setError(null);
+    setDebugInfo(`正在获取车站 ${stationName} (ID: ${stationId}) 的数据...`);
+    
     try {
-      console.log("正在获取车站数据:", station.id); // 调试信息
-      const res = await axios.get(`/api/arrivals?station=${station.id}`);
-      console.log("获取到的数据:", res.data); // 调试信息
+      console.log(`前端: 请求车站 ${stationId} 的数据`);
+      const res = await axios.get(`/api/arrivals?station=${stationId}`);
+      console.log(`前端: 收到响应`, res.data);
+      
       setArrivals(res.data.arrivals || []);
       setLineStatuses(res.data.statuses || []);
       setLastUpdated(new Date());
+      
+      if (res.data.arrivals && res.data.arrivals.length > 0) {
+        setDebugInfo(`成功获取 ${res.data.arrivals.length} 个到达信息`);
+      } else {
+        setDebugInfo("该车站暂无到达信息");
+      }
     } catch (err) {
-      console.error("获取车辆信息失败:", err);
-      setError("无法获取该车站的实时信息，请稍后重试");
+      console.error("前端: 获取车辆信息失败:", err.response?.data || err.message);
+      const errorMsg = err.response?.data?.error || "无法获取该车站的实时信息";
+      const errorDetails = err.response?.data?.details || "";
+      setError(`${errorMsg}${errorDetails ? `: ${errorDetails}` : ''}`);
       setArrivals([]);
       setLineStatuses([]);
+      setDebugInfo(`错误: ${errorMsg}`);
     }
     setLoading(false);
   };
 
   const handleStationSelect = (selectedStation) => {
-    console.log("车站选择:", selectedStation); // 调试信息
+    console.log("前端: 选择车站", selectedStation);
     setStation(selectedStation);
-    // 立即获取数据，不需要等待useEffect
+    // 立即获取数据
     setTimeout(() => {
-      fetchArrivals();
+      fetchArrivals(selectedStation.id, selectedStation.name);
     }, 0);
   };
 
   useEffect(() => {
     if (station) {
       const interval = setInterval(() => {
-        fetchArrivals();
-      }, 30000); // 每30秒更新一次
+        fetchArrivals(station.id, station.name);
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [station]);
@@ -65,7 +79,20 @@ export default function Home() {
             onStationSelect={handleStationSelect} 
             currentStation={station}
           />
+          <QuickStationSelect onStationSelect={handleStationSelect} />
         </div>
+
+        {/* 调试信息 */}
+        {debugInfo && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 text-sm">
+            <strong>调试信息:</strong> {debugInfo}
+            {station && (
+              <div className="mt-1">
+                车站ID: {station.id}, 车站名: {station.name}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 错误信息 */}
         {error && (
@@ -94,6 +121,10 @@ export default function Home() {
             <p className="text-gray-300">
               No upcoming departures found for {station.name}. This station might be closed or have no scheduled services at the moment.
             </p>
+            <div className="mt-4 text-sm text-gray-400">
+              <p>车站ID: {station.id}</p>
+              <p>尝试点击上方的常用车站按钮</p>
+            </div>
           </div>
         )}
 
@@ -105,7 +136,7 @@ export default function Home() {
               Search for a London Underground station above to see live departure information
             </p>
             <div className="mt-4 text-sm text-gray-400">
-              <p>试试搜索: Oxford Circus, King's Cross, Victoria, Waterloo</p>
+              <p>或者点击上方的常用车站按钮快速开始</p>
             </div>
           </div>
         )}
