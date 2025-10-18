@@ -1,5 +1,3 @@
-[file name]: pages/index.js
-[file content begin]
 import { useEffect, useState } from "react";
 import DepartureBoard from "../components/DepartureBoard";
 import StationSearch from "../components/StationSearch";
@@ -90,4 +88,3 @@ export default function Home() {
     </div>
   );
 }
-[file content end]
