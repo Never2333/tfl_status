@@ -1,0 +1,55 @@
+// Arrivals + Line Status with tube-only filtering and child-platform fallback
+export default async function handler(req, res){
+  const id = req.query.id;
+  if(!id) return res.status(400).json({ error:'missing id' });
+
+  const params = new URLSearchParams();
+  if (process.env.TFL_API_KEY) params.set('app_key', process.env.TFL_API_KEY);
+
+  async function fetchArrivalsFor(stopId){
+    const url = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(stopId)}/Arrivals${params.toString()?`?${params.toString()}`:''}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    return (Array.isArray(data)?data:[]).filter(x => (x.modeName||'').toLowerCase() === 'tube');
+  }
+
+  try{
+    let arrivals = await fetchArrivalsFor(id);
+
+    if (!arrivals.length){
+      const spUrl = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`;
+      const spRes = await fetch(spUrl);
+      const sp = await spRes.json();
+      const children = (sp.children || []).filter(c => {
+        const modes = (c.modes || []).map(x=>String(x).toLowerCase());
+        const place = String(c.placeType||'').toLowerCase();
+        return modes.includes('tube') && (place.includes('naptanmetroplatform') || place.includes('naptanmetrostation'));
+      });
+      const chunks = await Promise.all(children.map(c => fetchArrivalsFor(c.id)));
+      arrivals = chunks.flat();
+    }
+
+    arrivals.sort((a,b)=>{
+      const ta = typeof a.timeToStation==='number'?a.timeToStation:Number.MAX_SAFE_INTEGER;
+      const tb = typeof b.timeToStation==='number'?b.timeToStation:Number.MAX_SAFE_INTEGER;
+      return ta - tb;
+    });
+
+    const lineIds = Array.from(new Set(arrivals.map(a=>a.lineId))).filter(Boolean);
+    let statuses = [];
+    if (lineIds.length){
+      const statusUrl = `https://api.tfl.gov.uk/Line/${lineIds.join(',')}/Status${params.toString()?`?${params.toString()}`:''}`;
+      const rs = await fetch(statusUrl);
+      const lines = await rs.json();
+      statuses = (Array.isArray(lines)?lines:[]).map(l => ({
+        id: l.id,
+        name: l.name,
+        statusSeverityDescription: l.lineStatuses?.[0]?.statusSeverityDescription
+      }));
+    }
+
+    res.status(200).json({ arrivals, statuses });
+  }catch(e){
+    res.status(500).json({ error: String(e) });
+  }
+}
