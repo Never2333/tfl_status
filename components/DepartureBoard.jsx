@@ -56,8 +56,8 @@ export default function DepartureBoard({ arrivals }){
               {list.map(item => (
                 <div key={item.id} className="row">
                   <div className="col-span-2"><LineBadge id={item.lineId} name={item.lineName || item.lineId} /></div>
-                  <div className="col-span-4 truncate font-semibold">{item.destinationName}</div>
-                  <div className="col-span-3 text-neutral-300 truncate">{item.currentLocation || item.towards || '—'}</div>
+                  <div className="col-span-4 font-semibold wrap-md" title={item.destinationName}>{item.destinationName}</div>
+                  <div className="col-span-3 text-neutral-300 wrap-md" title={item.currentLocation || item.towards || ''}>{item.currentLocation || item.towards || '—'}</div>
                   <div className="col-span-2 text-right text-neutral-300">{item.expectedArrival ? new Date(item.expectedArrival).toLocaleTimeString('zh-CN') : '-'}</div>
                   <div className="col-span-1 text-right countdown">{secondsToText(typeof item.timeToStation==='number'?item.timeToStation:Infinity)}</div>
                 </div>

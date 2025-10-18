@@ -15,3 +15,4 @@ body { @apply bg-neutral-900 text-neutral-100; }
 .select { @apply bg-neutral-950 border border-neutral-800 rounded-lg px-2 py-2; }
 input[type="text"] { @apply bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2; }
 .table-head { @apply grid grid-cols-12 text-xs text-neutral-400 px-2 pb-2; }
+.wrap-md { @apply truncate md:whitespace-normal md:break-words; }

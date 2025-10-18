@@ -10,6 +10,24 @@ async function resolveTubeChildren(id, params){
   });
   return children.map(c => ({ id: c.id, name: c.commonName || c.name, raw: c }));
 }
+function cleanStationName(name){
+  if(!name) return name;
+  return name.replace(/\s*\(?Underground Station\)?/gi, '').trim();
+}
+async function fetchTubeLinesFor(stopId, params){
+  // Try /Lines first, fallback to StopPoint detail
+  const lu = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(stopId)}/Lines${params.toString()?`?${params.toString()}`:''}`;
+  const lr = await fetch(lu);
+  let lines = await lr.json();
+  if (!Array.isArray(lines)) {
+    const du = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(stopId)}${params.toString()?`?${params.toString()}`:''}`;
+    const dr = await fetch(du);
+    const dj = await dr.json();
+    lines = dj.lines || [];
+  }
+  return (Array.isArray(lines)?lines:[]).filter(l => (l.modeName||'').toLowerCase()==='tube')
+    .map(l => ({ id: l.id, name: l.name }));
+}
 
 export default async function handler(req, res){
   const id = req.query.id;

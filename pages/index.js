@@ -31,9 +31,7 @@ export default function Home(){
 
   return (
     <div>
-      <Head>
-        <title>伦敦地铁状态</title>
-      </Head>
+      <Head><title>伦敦地铁状态</title></Head>
       <HeaderBar selected={selected} onRefresh={()=> selected && fetchData(selected.id)} />
       <main className="max-w-5xl mx-auto p-6">
         <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -54,7 +52,6 @@ export default function Home(){
             </div>
           </div>
         </div>
-
         <DepartureBoard arrivals={arrivals} />
         {loading && <div className="mt-3 text-sm text-neutral-400">正在更新…</div>}
       </main>
