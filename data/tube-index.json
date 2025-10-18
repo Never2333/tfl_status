@@ -1,0 +1,212 @@
+{
+  "stations": [
+    {
+      "id": "940GZZLUHSC",
+      "name": "Hammersmith",
+      "lines": [
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "hammersmith-city",
+          "name": "Hammersmith & City"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUHSD",
+      "name": "Hammersmith",
+      "lines": [
+        {
+          "id": "district",
+          "name": "District"
+        },
+        {
+          "id": "piccadilly",
+          "name": "Piccadilly"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUKSX",
+      "name": "King's Cross St. Pancras",
+      "lines": [
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "hammersmith-city",
+          "name": "Hammersmith & City"
+        },
+        {
+          "id": "metropolitan",
+          "name": "Metropolitan"
+        },
+        {
+          "id": "northern",
+          "name": "Northern"
+        },
+        {
+          "id": "piccadilly",
+          "name": "Piccadilly"
+        },
+        {
+          "id": "victoria",
+          "name": "Victoria"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUWLO",
+      "name": "Waterloo",
+      "lines": [
+        {
+          "id": "bakerloo",
+          "name": "Bakerloo"
+        },
+        {
+          "id": "jubilee",
+          "name": "Jubilee"
+        },
+        {
+          "id": "northern",
+          "name": "Northern"
+        },
+        {
+          "id": "waterloo-city",
+          "name": "Waterloo & City"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUOXC",
+      "name": "Oxford Circus",
+      "lines": [
+        {
+          "id": "bakerloo",
+          "name": "Bakerloo"
+        },
+        {
+          "id": "central",
+          "name": "Central"
+        },
+        {
+          "id": "victoria",
+          "name": "Victoria"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUPAC",
+      "name": "Paddington",
+      "lines": [
+        {
+          "id": "bakerloo",
+          "name": "Bakerloo"
+        },
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "district",
+          "name": "District"
+        },
+        {
+          "id": "elizabeth",
+          "name": "Elizabeth"
+        },
+        {
+          "id": "hammersmith-city",
+          "name": "Hammersmith & City"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLULVT",
+      "name": "Liverpool Street",
+      "lines": [
+        {
+          "id": "central",
+          "name": "Central"
+        },
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "hammersmith-city",
+          "name": "Hammersmith & City"
+        },
+        {
+          "id": "metropolitan",
+          "name": "Metropolitan"
+        },
+        {
+          "id": "elizabeth",
+          "name": "Elizabeth"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLULNB",
+      "name": "London Bridge",
+      "lines": [
+        {
+          "id": "jubilee",
+          "name": "Jubilee"
+        },
+        {
+          "id": "northern",
+          "name": "Northern"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUVIC",
+      "name": "Victoria",
+      "lines": [
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "district",
+          "name": "District"
+        },
+        {
+          "id": "victoria",
+          "name": "Victoria"
+        }
+      ]
+    },
+    {
+      "id": "940GZZLUBST",
+      "name": "Baker Street",
+      "lines": [
+        {
+          "id": "bakerloo",
+          "name": "Bakerloo"
+        },
+        {
+          "id": "circle",
+          "name": "Circle"
+        },
+        {
+          "id": "hammersmith-city",
+          "name": "Hammersmith & City"
+        },
+        {
+          "id": "jubilee",
+          "name": "Jubilee"
+        },
+        {
+          "id": "metropolitan",
+          "name": "Metropolitan"
+        }
+      ]
+    }
+  ]
+}

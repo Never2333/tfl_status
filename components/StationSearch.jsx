@@ -6,7 +6,7 @@ const CACHE = new Map();
 const TTL = 2 * 60 * 1000;
 function setCache(key, value){ CACHE.set(key, { value, ts: Date.now() }); }
 function getCache(key){ const e=CACHE.get(key); if(!e) return null; if(Date.now()-e.ts>TTL){ CACHE.delete(key); return null; } return e.value; }
-function norm(s){ return String(s||'').toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g,' ').trim(); }
+function norm(s){ return String(s||'').toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim(); }
 function cleanName(n){ return n? n.replace(/\s*\(?Underground Station\)?/gi, '').trim() : n; }
 const ABBR = { "Hammersmith & City":"H&C","Waterloo & City":"W&C","Metropolitan":"Met","Elizabeth":"Elizabeth","Bakerloo":"Bakerloo","Central":"Central","Circle":"Circle","District":"District","Jubilee":"Jubilee","Northern":"Northern","Piccadilly":"Piccadilly","Victoria":"Victoria","DLR":"DLR","Overground":"Overground" };
 function short(lines){ if(!Array.isArray(lines)||!lines.length) return ''; const names=lines.map(l=>ABBR[l.name]||l.name); const out=names.slice(0,5).join('/'); return names.length>5? out+'/…': out; }
@@ -58,7 +58,9 @@ export default function StationSearch({ onSelect }){
       {open && results.length>0 && (
         <ul className="absolute z-10 mt-2 w-full max-h-96 overflow-auto bg-neutral-900 border border-neutral-800 rounded-lg">
           {results.map(r=> (
-            <li key={r.id} className="px-3 py-2 hover:bg-neutral-800 cursor-pointer" onClick={()=>{ onSelect({ id:r.id, name:r.name, displayName:r.displayName }); setQ(r.displayName); setOpen(false); }}>
+            <li key={r.id}
+                className="px-3 py-2 hover:bg-neutral-800 cursor-pointer"
+                onClick={()=>{ onSelect({ id:r.id, name:r.name, displayName:r.displayName }); setQ(r.displayName); setOpen(false); }}>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{r.displayName}</div>

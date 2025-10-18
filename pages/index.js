@@ -11,20 +11,20 @@ export default function Home(){
   const [loading, setLoading] = useState(false);
   const refreshRef = useRef();
 
-  // Prewarm search index on mount (non-blocking)
-  useEffect(()=>{ fetch('/api/search?q=ham'); fetch('/api/search?q=king'); },[]);
+  // Prewarm
+  useEffect(()=>{ fetch('/api/search?q=ham'); fetch('/api/search?q=king'); fetch('/api/search?q=wat'); },[]);
 
   useEffect(()=>{
     if(!selected) return;
-    fetchData(selected.id);
-    refreshRef.current = setInterval(()=> fetchData(selected.id), 30_000);
+    fetchData(selected.id, selected.name);
+    refreshRef.current = setInterval(()=> fetchData(selected.id, selected.name), 30_000);
     return ()=> clearInterval(refreshRef.current);
   }, [selected]);
 
-  async function fetchData(stopPointId){
+  async function fetchData(stopPointId, name){
     setLoading(true);
     try{
-      const r = await fetch(`/api/arrivals?id=${encodeURIComponent(stopPointId)}`);
+      const r = await fetch(`/api/arrivals?id=${encodeURIComponent(stopPointId)}${name?`&name=${encodeURIComponent(name)}`:''}`);
       const json = await r.json();
       setArrivals(json.arrivals || []);
       setStatuses(json.statuses || []);
@@ -35,7 +35,7 @@ export default function Home(){
   return (
     <div>
       <Head><title>伦敦地铁状态</title></Head>
-      <HeaderBar selected={selected} onRefresh={()=> selected && fetchData(selected.id)} />
+      <HeaderBar selected={selected} onRefresh={()=> selected && fetchData(selected.id, selected.name)} />
       <main className="max-w-5xl mx-auto p-6">
         <div className="grid md:grid-cols-3 gap-4 mb-6">
           <div className="md:col-span-2">
@@ -55,6 +55,7 @@ export default function Home(){
             </div>
           </div>
         </div>
+
         <DepartureBoard arrivals={arrivals} />
         {loading && <div className="mt-3 text-sm text-neutral-400">正在更新…</div>}
       </main>

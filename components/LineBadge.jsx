@@ -12,10 +12,16 @@ const COLORS = {
   victoria: "bg-[#0098D4]",
   waterlooandcity: "bg-[#95CDBA] text-black",
   dlr: "bg-[#00A4A7]",
+  londonoverground: "bg-[#EE7C0E]",
   overground: "bg-[#EE7C0E]",
 };
+function keyFromName(nameOrId){
+  const s = String(nameOrId||'').toLowerCase().replace(/[^a-z]/g,'');
+  if (s === 'londonoverground') return 'overground';
+  return s;
+}
 export default function LineBadge({ id, name, small }) {
-  const key = String(id||"").replace(/[^a-z]/gi, "").toLowerCase();
+  const key = keyFromName(id || name);
   const klass = COLORS[key] || "bg-neutral-700";
   return (<span className={`badge ${klass} ${small?'text-[10px]':''}`}>{name || id}</span>);
 }
