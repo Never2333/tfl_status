@@ -46,7 +46,7 @@ export default function StationSearch({ onSelect }) {
   },[]);
 
   useEffect(() => {
-    if (!q || q.length < 2) { setResults([]); return; }
+    if (!q || q.length < 3) { setResults([]); return; } // require 3+ chars to reduce calls
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
@@ -60,7 +60,7 @@ export default function StationSearch({ onSelect }) {
       });
       setResults(list);
       setOpen(true);
-    }, 250);
+    }, 380);
   }, [q]);
 
   return (
