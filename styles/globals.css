@@ -14,4 +14,3 @@ body { @apply bg-neutral-900 text-neutral-100; }
 .btn { @apply px-3 py-2 border border-neutral-700 rounded-lg hover:bg-neutral-800; }
 .select { @apply bg-neutral-950 border border-neutral-800 rounded-lg px-2 py-2; }
 input[type="text"] { @apply bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2; }
-header.sticky { @apply sticky top-0 z-20 bg-neutral-900/90 backdrop-blur; }
