@@ -1,150 +1,164 @@
-// Faster & smarter search: caching + robust line resolution (handles Circle at Hammersmith)
-const CACHE = global._SEARCH_CACHE ||= new Map();
-const CACHE_TTL_MS = 60 * 1000; // 60s soft cache
+// Tube-only, fast, and filtered search
+// - Excludes 910G (National Rail), 490 (Bus), etc.
+// - Resolves to 940G tube station/platform and derives line badges from lineModeGroups
+// - Caches StopPoint detail and search results for 60s
+// - Requires q length >= 3 to reduce requests
 
-function setCache(key, value){
-  CACHE.set(key, { value, ts: Date.now() });
-}
-function getCache(key){
-  const e = CACHE.get(key);
-  if(!e) return null;
-  if(Date.now() - e.ts > CACHE_TTL_MS){ CACHE.delete(key); return null; }
-  return e.value;
-}
+const SEARCH_CACHE = global._SEARCH_CACHE_STRICT ||= new Map();
+const SP_CACHE = global._SP_CACHE ||= new Map();
+const TTL = 60 * 1000;
 
-async function resolveTubeChildren(id, params){
-  const spUrl = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`;
-  const r = await fetch(spUrl);
-  const sp = await r.json();
+function setCache(map, key, value){ map.set(key, { value, ts: Date.now() }); }
+function getCache(map, key){ const e = map.get(key); if(!e) return null; if(Date.now()-e.ts>TTL){ map.delete(key); return null; } return e.value; }
 
-  // Prefer parent station if current is a platform
-  const stopType = String(sp.stopType||'').toLowerCase();
-  if (stopType.includes('naptanmetroplatform') && sp.parentId){
-    const pr = await fetch(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(sp.parentId)}${params.toString()?`?${params.toString()}`:''}`);
-    const parent = await pr.json();
-    return [{ id: parent.id, name: parent.commonName || parent.name }];
-  }
+const LINES_MAP = {
+  'bakerloo':'Bakerloo',
+  'central':'Central',
+  'circle':'Circle',
+  'district':'District',
+  'elizabeth':'Elizabeth',
+  'hammersmith-city':'Hammersmith & City',
+  'jubilee':'Jubilee',
+  'metropolitan':'Metropolitan',
+  'northern':'Northern',
+  'piccadilly':'Piccadilly',
+  'victoria':'Victoria',
+  'waterloo-city':'Waterloo & City',
+  'dlr':'DLR',
+  'london-overground':'Overground'
+};
 
-  const children = (sp.children || []).filter(c => {
-    const modes = (c.modes || []).map(x=>String(x).toLowerCase());
-    const st = String(c.stopType||'').toLowerCase();
-    const idok = String(c.id||'').startsWith('940G');
-    return idok && modes.includes('tube') && (st.includes('naptanmetrostation') || st.includes('naptanmetroplatform'));
-  });
-  // If there are proper station nodes among children, return those; else return original
-  const stations = children.filter(c => String(c.stopType||'').toLowerCase().includes('naptanmetrostation'));
-  if (stations.length) return stations.map(c => ({ id: c.id, name: c.commonName || c.name }));
-  if (children.length) return children.map(c => ({ id: c.id, name: c.commonName || c.name }));
-  return [{ id: sp.id, name: sp.commonName || sp.name }];
-}
-
-function cleanStationName(name){
+function cleanName(name){
   if(!name) return name;
   return name.replace(/\s*\(?Underground Station\)?/gi, '').trim();
 }
 
-async function fetchTubeLinesFor(stopId, params){
-  // Cache
-  const ck = `lines:${stopId}`;
-  const cached = getCache(ck);
+async function fetchStopPoint(id, params){
+  const ck = `sp:${id}`;
+  const cached = getCache(SP_CACHE, ck);
   if (cached) return cached;
-
-  // Fetch detail first to detect parent & mode groups
-  const du = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(stopId)}${params.toString()?`?${params.toString()}`:''}`;
-  const dr = await fetch(du);
-  const dj = await dr.json();
-
-  // If it's a platform, resolve to parent station for broader line list
-  let stationId = stopId;
-  const st = String(dj.stopType||'').toLowerCase();
-  if (st.includes('naptanmetroplatform') && dj.parentId) stationId = dj.parentId;
-
-  // Primary: /Lines on station
-  let lines = [];
-  try{
-    const lu = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(stationId)}/Lines${params.toString()?`?${params.toString()}`:''}`;
-    const lr = await fetch(lu);
-    const lj = await lr.json();
-    if (Array.isArray(lj)) lines = lj;
-  }catch{}
-
-  // Fallback: lineModeGroups from detail (covers Circle/H&C at Hammersmith stations)
-  if (!lines.length && Array.isArray(dj.lineModeGroups)){
-    const ids = (dj.lineModeGroups||[]).flatMap(g=>g.lineIdentifier || []);
-    // Map ids to {id,name} via /Line/{ids}
-    if (ids.length){
-      const liu = `https://api.tfl.gov.uk/Line/${ids.join(',')}${params.toString()?`?${params.toString()}`:''}`;
-      try{
-        const lir = await fetch(liu);
-        const lis = await lir.json();
-        lines = Array.isArray(lis)? lis : [];
-      }catch{}
-    }
-  }
-
-  const filtered = (lines||[]).filter(l => (l.modeName||'').toLowerCase()==='tube').map(l => ({ id: l.id, name: l.name }));
-  setCache(ck, filtered);
-  return filtered;
+  const url = `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`;
+  const r = await fetch(url);
+  const sp = await r.json();
+  setCache(SP_CACHE, ck, sp);
+  return sp;
 }
 
-export default async function handler(req, res) {
+function isTubeStationNode(node){
+  const id = String(node.id||'');
+  if (!id.startsWith('940G')) return false;
+  const modes = (node.modes || []).map(x=>String(x).toLowerCase());
+  const st = String(node.stopType||'').toLowerCase();
+  return modes.includes('tube') && (st.includes('naptanmetrostation') || st.includes('naptanmetroplatform'));
+}
+
+function deriveTubeLinesFromSP(sp){
+  const groups = Array.isArray(sp.lineModeGroups)? sp.lineModeGroups : [];
+  const tubeGroupIds = groups.filter(g => String(g.modeName||'').toLowerCase()==='tube')
+                             .flatMap(g => Array.isArray(g.lineIdentifier)? g.lineIdentifier : []);
+  const uniq = Array.from(new Set(tubeGroupIds));
+  const mapped = uniq.map(id => ({ id, name: LINES_MAP[id] || id }));
+  return mapped;
+}
+
+export default async function handler(req, res){
   let q = String(req.query.q || '');
   if (!q) return res.status(400).json({ error: 'missing q' });
   q = q.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim();
+  if (q.length < 3) return res.status(200).json({ results: [] });
 
-  const cacheKey = `search:${q}`;
-  const cached = getCache(cacheKey);
-  if (cached){ return res.status(200).json(cached); }
+  const cacheKey = `q:${q}`;
+  const cached = getCache(SEARCH_CACHE, cacheKey);
+  if (cached){
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600');
+    return res.status(200).json(cached);
+  }
 
   const params = new URLSearchParams();
   if (process.env.TFL_API_KEY) params.set('app_key', process.env.TFL_API_KEY);
 
-  async function searchPrimary(){
+  async function primary(){
     const url = `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(q)}${params.toString()?`?${params.toString()}`:''}`;
     const r = await fetch(url);
     if (!r.ok) throw new Error('search failed');
     return r.json();
   }
-  async function searchFallback(){
+  async function fallback(){
     const url = `https://api.tfl.gov.uk/StopPoint?query=${encodeURIComponent(q)}${params.toString()?`&${params.toString()}`:''}`;
     const r = await fetch(url);
     if (!r.ok) throw new Error('fallback failed');
     const arr = await r.json();
-    return { matches: (Array.isArray(arr)?arr:[]).map(x => ({ id: x.id, name: x.commonName || x.name })) };
+    return { matches: (Array.isArray(arr)?arr:[]).map(x => ({ id: x.id, name: x.commonName || x.name, modes: x.modes, stopType: x.stopType })) };
   }
 
-  try {
+  try{
     let json;
-    try { json = await searchPrimary(); } catch { json = await searchFallback(); }
-    const matches = (json.matches || []).slice(0, 25);
+    try { json = await primary(); } catch { json = await fallback(); }
 
-    const out = [];
-    for (const m of matches) {
-      const id = String(m.id || '');
-      if (id.startsWith('940G')) {
-        out.push({ id: m.id, name: cleanStationName(m.name) });
-      } else {
-        const kids = await resolveTubeChildren(m.id, params);
-        for (const k of kids) out.push({ id: k.id, name: cleanStationName(k.name) });
+    const matches = (json.matches || []).slice(0, 30);
+    const candidates = [];
+    for (const m of matches){
+      const id = String(m.id||'');
+      // Hard exclude obvious non-tube prefixes
+      if (id.startsWith('910') || id.startsWith('490') || id.startsWith('HUB')) continue;
+
+      if (id.startsWith('940G')){
+        candidates.push({ id, name: cleanName(m.name) });
+        continue;
       }
+      // Need to resolve to tube station(s)
+      try{
+        const sp = await fetchStopPoint(id, params);
+        // If the node itself is a tube station/platform, prefer its parent station (for richer lines)
+        if (isTubeStationNode(sp)){
+          const node = sp;
+          if (String(node.stopType||'').toLowerCase().includes('naptanmetroplatform') && node.parentId){
+            const parent = await fetchStopPoint(node.parentId, params);
+            if (isTubeStationNode(parent)) candidates.push({ id: parent.id, name: cleanName(parent.commonName || parent.name) });
+          }else{
+            candidates.push({ id: node.id, name: cleanName(node.commonName || node.name) });
+          }
+        }else{
+          // inspect children for tube stations
+          const children = Array.isArray(sp.children)? sp.children : [];
+          const stations = children.filter(isTubeStationNode);
+          for (const s of stations){
+            // If child is platform and parentId exists, elevate to parent station
+            if (String(s.stopType||'').toLowerCase().includes('naptanmetroplatform') && s.parentId){
+              const parent = await fetchStopPoint(s.parentId, params);
+              if (isTubeStationNode(parent)) candidates.push({ id: parent.id, name: cleanName(parent.commonName || parent.name) });
+            }else{
+              candidates.push({ id: s.id, name: cleanName(s.commonName || s.name) });
+            }
+          }
+        }
+      }catch{ /* ignore */ }
     }
 
-    // Deduplicate
+    // Deduplicate by id
     const uniq = new Map();
-    for (const r of out) if (!uniq.has(r.id)) uniq.set(r.id, r);
-    const normalized = Array.from(uniq.values());
+    for (const c of candidates) if (!uniq.has(c.id)) uniq.set(c.id, c);
+    let list = Array.from(uniq.values());
 
-    // Enrich tube lines
+    // Enrich with tube lines via lineModeGroups (fetch StopPoint detail, with cache)
+    // Limit to top 12 for performance
+    list = list.slice(0, 12);
     const enriched = [];
-    await Promise.all(normalized.map(async (r)=>{
-      const lines = await fetchTubeLinesFor(r.id, params);
-      enriched.push({ ...r, lines });
+    await Promise.all(list.map(async (c)=>{
+      try{
+        const sp = await fetchStopPoint(c.id, params);
+        const lines = deriveTubeLinesFromSP(sp);
+        // If no tube lines after derivation, drop this candidate
+        if (!lines.length) return;
+        enriched.push({ ...c, lines });
+      }catch{}
     }));
 
     const result = { results: enriched };
-    setCache(cacheKey, result);
-    res.status(200).json(result);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
+    setCache(SEARCH_CACHE, cacheKey, result);
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600');
+    return res.status(200).json(result);
+  }catch(e){
+    return res.status(500).json({ error: String(e) });
   }
 }
