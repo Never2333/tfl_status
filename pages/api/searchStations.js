@@ -12,11 +12,11 @@ export default async function handler(req, res) {
       `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(query)}?app_key=${apiKey}`
     );
     
-    // 过滤只显示地铁站
+    // 过滤只显示地铁站，并使用正确的ID格式
     const stations = searchRes.data.matches
       .filter(station => station.modes.includes("tube"))
       .map(station => ({
-        id: station.icsId || station.id,
+        id: station.id, // 使用 station.id 而不是 icsId
         name: station.name,
         lines: station.lines?.map(line => line.name) || []
       }));
