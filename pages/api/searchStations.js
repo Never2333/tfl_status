@@ -10,32 +10,64 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.TFL_API_KEY;
   try {
-    // 使用更精确的搜索端点
+    // 使用更精确的搜索端点，专门搜索地铁站
     const searchRes = await axios.get(
-      `https://api.tfl.gov.uk/StopPoint/Search?query=${encodeURIComponent(query)}&modes=tube&app_key=${apiKey}`
+      `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(query)}?modes=tube&app_key=${apiKey}`
     );
     
-    console.log(`搜索返回结果:`, searchRes.data);
+    console.log(`搜索返回原始数据:`, searchRes.data);
     
-    // 处理搜索结果
-    const stations = searchRes.data.matches
-      .filter(station => station.modes && station.modes.includes("tube"))
-      .map(station => ({
-        id: station.icsId || station.id, // 优先使用icsId，它是地铁站的标准ID格式
-        name: station.name,
-        lines: station.lines?.map(line => line.name) || []
-      }))
-      .filter(station => station.id) // 确保有ID
-      .slice(0, 10); // 限制结果数量
+    if (!searchRes.data.matches || searchRes.data.matches.length === 0) {
+      return res.status(200).json([]);
+    }
 
+    // 处理搜索结果，获取详细的车站信息
+    const stationPromises = searchRes.data.matches
+      .filter(station => station.modes && station.modes.includes("tube"))
+      .slice(0, 5) // 限制前5个结果
+      .map(async (station) => {
+        try {
+          // 获取车站的详细信息，包含正确的ID
+          const detailRes = await axios.get(
+            `https://api.tfl.gov.uk/StopPoint/${station.id}?app_key=${apiKey}`
+          );
+          
+          const stationDetail = detailRes.data;
+          
+          // 寻找正确的地铁站ID - 优先使用icsId
+          let correctId = station.id;
+          if (stationDetail.icsId && stationDetail.icsId.startsWith('940GZZLU')) {
+            correctId = stationDetail.icsId;
+          } else if (stationDetail.id && stationDetail.id.startsWith('940GZZLU')) {
+            correctId = stationDetail.id;
+          }
+          
+          return {
+            id: correctId,
+            name: stationDetail.commonName || station.name,
+            lines: stationDetail.lines?.map(line => line.name) || []
+          };
+        } catch (detailErr) {
+          console.error(`获取车站 ${station.id} 详情失败:`, detailErr.message);
+          // 如果获取详情失败，使用原始数据
+          return {
+            id: station.id,
+            name: station.name,
+            lines: station.lines?.map(line => line.name) || []
+          };
+        }
+      });
+
+    const stations = (await Promise.all(stationPromises)).filter(Boolean);
+    
     console.log(`处理后车站列表:`, stations);
 
     res.status(200).json(stations);
   } catch (err) {
     console.error("搜索车站错误详情:", {
       message: err.message,
-      response: err.response?.data,
-      status: err.response?.status
+      response: errResponse?.data,
+      status: errResponse?.status
     });
     res.status(500).json({ error: "Failed to search stations" });
   }
