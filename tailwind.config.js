@@ -1,5 +1,3 @@
-[file name]: tailwind.config.js
-[file content begin]
 module.exports = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx}",
@@ -17,4 +15,3 @@ module.exports = {
   },
   plugins: [],
 }
-[file content end]
