@@ -11,7 +11,6 @@ export default function Home(){
   const [loading, setLoading] = useState(false);
   const refreshRef = useRef();
 
-  // Prewarm
   useEffect(()=>{ fetch('/api/search?q=ham'); fetch('/api/search?q=king'); fetch('/api/search?q=wat'); },[]);
 
   useEffect(()=>{

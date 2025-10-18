@@ -1,5 +1,4 @@
-// pro8: Always return 940G *station* IDs (no HUB, no platform)
-const CACHE = global._SEARCH_CACHE_P8 ||= new Map();
+const CACHE = global._SEARCH_CACHE_P81 ||= new Map();
 const TTL = 60 * 1000;
 
 function setCache(key, value){ CACHE.set(key, { value, ts: Date.now() }); }
@@ -19,10 +18,23 @@ const LINE_NAME_MAP = {
   'piccadilly':'Piccadilly','victoria':'Victoria','waterloo-city':'Waterloo & City','dlr':'DLR','london-overground':'Overground'
 };
 
+const HUB_ALIASES = {
+  'hammersmith': ['940GZZLUHSC','940GZZLUHSD'],
+  'kings cross': ['940GZZLUKSX','940GZZLUKSX'],
+  "king's cross": ['940GZZLUKSX','940GZZLUKSX'],
+  'waterloo': ['940GZZLUWLO'],
+};
+
 async function fetchJSON(url){
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+async function fetchJSONRetry(urls){
+  for (const url of urls){
+    try{ return await fetchJSON(url); }catch(e){}
+  }
+  throw new Error('all fetches failed');
 }
 
 function isStation(sp){
@@ -46,17 +58,15 @@ function deriveLines(sp){
   return ids.map(id => ({ id, name: LINE_NAME_MAP[id] || id }));
 }
 
-// Given any StopPoint detail `sp`, return a set of 940G *station* IDs derived from it
 async function stationIdsFromDetail(sp, params){
   const out = new Set();
   if (isStation(sp)){ out.add(sp.id); }
   else if (isPlatform(sp) && sp.parentId){
     try{
-      const pd = await fetchJSON(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(sp.parentId)}${params.toString()?`?${params.toString()}`:''}`);
-      if (isStation(pd)) out.add(pd.id);
+      const pd = await fetch(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(sp.parentId)}${params.toString()?`?${params.toString()}`:''}`);
+      if (pd.ok){ const dj = await pd.json(); if (isStation(dj)) out.add(dj.id); }
     }catch{}
   }
-  // inspect children
   const kids = Array.isArray(sp.children)? sp.children : [];
   for (const k of kids){
     if (isStation(k)) out.add(k.id);
@@ -95,33 +105,45 @@ export default async function handler(req, res){
   if (process.env.TFL_API_KEY) params.set('app_key', process.env.TFL_API_KEY);
 
   try{
-    const url = `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(q)}${params.toString()?`?${params.toString()}`:''}`;
-    const js = await fetchJSON(url);
-    const matches = Array.isArray(js.matches)? js.matches.slice(0, 30) : [];
-    const stationIds = new Set();
+    const prim = `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(q)}${params.toString()?`?${params.toString()}`:''}`;
+    const alt1 = `https://api.tfl.gov.uk/StopPoint?query=${encodeURIComponent(q)}${params.toString()?`&${params.toString()}`:''}`;
+    const alt2 = `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(q.replace(/\b(st|st\.)\b/gi,'saint'))}${params.toString()?`?${params.toString()}`:''}`;
+    const js = await fetchJSONRetry([prim, alt1, alt2]);
 
-    for (const m of matches){
+    let matches = [];
+    if (Array.isArray(js.matches)) matches = js.matches;
+    else if (Array.isArray(js)) matches = js;
+
+    const stationIds = new Set();
+    for (const m of matches.slice(0, 40)){
       const mid = String(m.id||'');
       try{
-        const detail = await fetchJSON(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(mid)}${params.toString()?`?${params.toString()}`:''}`);
+        const dr = await fetch(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(mid)}${params.toString()?`?${params.toString()}`:''}`);
+        if (!dr.ok) continue;
+        const detail = await dr.json();
         const ids = await stationIdsFromDetail(detail, params);
         for (const id of ids) stationIds.add(id);
       }catch{}
     }
 
-    // For each station id, fetch its detail to get clean name + lines
+    if (!stationIds.size){
+      const alias = HUB_ALIASES[cacheKey];
+      if (alias){ for (const id of alias) stationIds.add(id); }
+    }
+
     const results = [];
     for (const id of stationIds){
       try{
-        const sp = await fetchJSON(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`);
+        const rr = await fetch(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(id)}${params.toString()?`?${params.toString()}`:''}`);
+        if (!rr.ok) continue;
+        const sp = await rr.json();
         if (!isStation(sp)) continue;
         results.push({ id: sp.id, name: cleanName(sp.commonName || sp.name), lines: deriveLines(sp) });
       }catch{}
     }
 
-    // Dedup and sort
     const uniq = new Map();
-    for (const r of results){ if (!uniq.has(r.id)) uniq.set(r.id, r); }
+    for (const r of results) if(!uniq.has(r.id)) uniq.set(r.id, r);
     let list = Array.from(uniq.values());
     list.sort((a,b)=>{
       const sa = score(a.name, q);
@@ -130,7 +152,6 @@ export default async function handler(req, res){
       return a.name.localeCompare(b.name);
     });
 
-    // Final payload
     const payload = { results: list.slice(0, 12) };
     setCache(cacheKey, payload);
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600');
