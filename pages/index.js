@@ -11,6 +11,9 @@ export default function Home(){
   const [loading, setLoading] = useState(false);
   const refreshRef = useRef();
 
+  // Prewarm search index on mount (non-blocking)
+  useEffect(()=>{ fetch('/api/search?q=ham'); fetch('/api/search?q=king'); },[]);
+
   useEffect(()=>{
     if(!selected) return;
     fetchData(selected.id);
