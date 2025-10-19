@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-// 简单的 debounce
 function useDebounced(value, delay=300){
   const [v, setV] = useState(value);
   useEffect(()=>{ const t = setTimeout(()=>setV(value), delay); return ()=>clearTimeout(t); }, [value, delay]);
@@ -15,11 +14,17 @@ export default function PlatformPage(){
   const debounced = useDebounced(query, 250);
   const [suggestions, setSuggestions] = useState([]);
   const [station, setStation] = useState(null); // { id, name }
-  const [board, setBoard] = useState({ stationName:'', entries:[] });
+  const [board, setBoard] = useState({ stationName:'', entries:[], availableLines:[], availablePlatforms:[] });
   const [loading, setLoading] = useState(false);
+
+  // 筛选/数量
+  const [line, setLine] = useState('');           // e.g. "circle"
+  const [platform, setPlatform] = useState('');   // substring
+  const [limit, setLimit] = useState(10);         // 3/5/8/10/15/20
+
   const timerRef = useRef(null);
 
-  // 从 ?id=940G... 直接打开
+  // 支持 /platform?id=940G... 直达
   useEffect(()=>{
     const { id } = router.query || {};
     if (id && typeof id === 'string'){
@@ -27,7 +32,7 @@ export default function PlatformPage(){
     }
   }, [router.query]);
 
-  // 搜索联想（复用你已有的 /api/search）
+  // 搜索联想
   useEffect(()=>{
     if (!debounced || debounced.length < 2){ setSuggestions([]); return; }
     (async ()=>{
@@ -44,50 +49,70 @@ export default function PlatformPage(){
     })();
   }, [debounced]);
 
-  // 拉取站台屏数据
-  async function loadBoard(id){
+  async function loadBoard(id, opts={}){
+    const q = new URLSearchParams();
+    q.set('id', id);
+    if (opts.line) q.set('line', opts.line);
+    if (opts.platform) q.set('platform', opts.platform);
+    q.set('limit', String(opts.limit || limit || 10));
+    q.set('t', String(Date.now())); // 防缓存
     try{
       setLoading(true);
-      const r = await fetch(`/api/platform?id=${encodeURIComponent(id)}&t=${Date.now()}`, { cache:'no-store' });
+      const r = await fetch(`/api/platform?${q.toString()}`, { cache:'no-store' });
       const j = await r.json();
-      setBoard({ stationName: j.stationName || station?.name || '', entries: j.entries || [] });
+      setBoard({
+        stationName: j.stationName || station?.name || '',
+        entries: j.entries || [],
+        availableLines: j.availableLines || [],
+        availablePlatforms: j.availablePlatforms || []
+      });
     }finally{
       setLoading(false);
     }
   }
 
-  // 选择站点后，进入看板并定时刷新
+  // 选站 → 加载 + 定时刷新
   useEffect(()=>{
     if (!station?.id) return;
-    loadBoard(station.id);
-    // 15 秒刷新一次
+    loadBoard(station.id, { line, platform, limit });
     clearInterval(timerRef.current);
-    timerRef.current = setInterval(()=> loadBoard(station.id), 15000);
+    timerRef.current = setInterval(()=> loadBoard(station.id, { line, platform, limit }), 15000);
     return ()=> clearInterval(timerRef.current);
   }, [station?.id]);
 
-  // 全屏
+  // 改变筛选/数量 → 立即刷新
+  useEffect(()=>{
+    if (!station?.id) return;
+    loadBoard(station.id, { line, platform, limit });
+  }, [line, platform, limit]);
+
   function toggleFullscreen(){
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
     else document.exitFullscreen?.();
   }
 
-  // 时钟
   const [now, setNow] = useState(new Date());
-  useEffect(()=>{
-    const t = setInterval(()=> setNow(new Date()), 1000);
-    return ()=> clearInterval(t);
-  }, []);
+  useEffect(()=>{ const t = setInterval(()=> setNow(new Date()), 1000); return ()=> clearInterval(t); }, []);
 
-  // 初始态：选站
+  // 选站界面
   if (!station?.id){
     return (
       <>
         <Head>
-          {/* DotGothic16 更接近“点阵风格”，可直接用 Google Fonts */}
+          {/* 引入你提供的字体 */}
+          <style>{`
+            @font-face{
+              font-family: 'LURegular';
+              src: url('/fonts/LondonUnderground-Regular.ttf') format('truetype');
+              font-weight: normal;
+              font-style: normal;
+              font-display: swap;
+            }
+          `}</style>
           <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet" />
           <title>站台屏 · 伦敦地铁状态</title>
         </Head>
+
         <div className="screen">
           <div className="panel">
             <h1 className="led title">选择地铁站</h1>
@@ -119,17 +144,26 @@ export default function PlatformPage(){
             .suggest-item:hover { background:#111; }
             .badge { color:#ffcf7f; font-size:12px; margin-left:12px; }
             .muted { color:#777; margin-top:10px; text-align:center; }
-            .led { font-family: 'DotGothic16', ui-monospace, monospace; letter-spacing: 1px; text-shadow: 0 0 6px rgba(255,154,0,.4); }
+            .led { font-family: 'LURegular', 'DotGothic16', ui-monospace, monospace; letter-spacing: 1px; text-shadow: 0 0 6px rgba(255,154,0,.35); }
           `}</style>
         </div>
       </>
     );
   }
 
-  // 看板态
+  // 看板
   return (
     <>
       <Head>
+        <style>{`
+          @font-face{
+            font-family: 'LURegular';
+            src: url('/fonts/LondonUnderground-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+          }
+        `}</style>
         <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet" />
         <title>{(board.stationName || station?.name || 'Station')} · 站台屏</title>
       </Head>
@@ -137,20 +171,36 @@ export default function PlatformPage(){
       <div className="board">
         <div className="board-inner">
           <div className="top">
-            <div className="corner left" onClick={()=> setStation(null)} title="返回选站">⟵</div>
+            <div className="left">
+              <button className="btn" onClick={()=> setStation(null)} title="返回选站">⟵ 返回</button>
+            </div>
             <div className="title led">{board.stationName || station?.name || ''}</div>
-            <div className="corner right">
-              <button className="btn" onClick={toggleFullscreen} title="全屏">⤢</button>
+            <div className="right">
+              {/* 筛选条 */}
+              <div className="filters">
+                <select className="ctrl" value={line} onChange={e=>setLine(e.target.value)}>
+                  <option value="">全部线路</option>
+                  {board.availableLines.map(l => <option key={l.id} value={l.id}>{l.name} ({l.count})</option>)}
+                </select>
+                <select className="ctrl" value={platform} onChange={e=>setPlatform(e.target.value)}>
+                  <option value="">全部站台</option>
+                  {board.availablePlatforms.map(p => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+                </select>
+                <select className="ctrl" value={limit} onChange={e=>setLimit(parseInt(e.target.value,10))}>
+                  {[3,5,8,10,15,20].map(n => <option key={n} value={n}>显示 {n} 趟</option>)}
+                </select>
+                <button className="btn" onClick={toggleFullscreen} title="全屏">⤢ 全屏</button>
+              </div>
             </div>
           </div>
 
           <div className="rows">
             {loading && !board.entries.length && <div className="row led">加载中…</div>}
             {board.entries.map(item => (
-              <div key={item.idx + item.towards} className="row">
+              <div key={item.idx + item.towards + item.eta} className="row">
                 <div className="col idx led">{String(item.idx).padStart(2,' ')}</div>
                 <div className="col dest led">
-                  {item.towards}{item.lineName ? `  (${item.lineName})` : ''}
+                  {item.towards}{item.lineName ? `  (${item.lineName})` : ''}{item.platform ? ` — ${item.platform}` : ''}
                 </div>
                 <div className="col eta led">{item.eta}</div>
               </div>
@@ -168,24 +218,27 @@ export default function PlatformPage(){
 
       <style jsx>{`
         .board { min-height: 100vh; background:#000; color:#ff9a00; }
-        .board-inner { max-width:1200px; margin:0 auto; padding:24px 20px 40px; }
-        .top { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; margin-bottom:28px; }
+        .board-inner { max-width:1280px; margin:0 auto; padding:24px 20px 40px; }
+        .top { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; margin-bottom:10px; }
+        .left { text-align:left; }
+        .right { text-align:right; }
         .title { font-size:56px; text-align:center; }
-        .corner { color:#ffcf7f; }
-        .corner.right { text-align:right; }
-        .btn { font-size:20px; color:#ffcf7f; background:transparent; border:1px solid #333; padding:6px 10px; border-radius:8px; }
-        .rows { margin-top:20px; }
-        .row { display:grid; grid-template-columns: 60px 1fr 140px; align-items:center; padding:14px 6px; }
+        .filters { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+        .ctrl { background:#000; color:#ffcf7f; border:1px solid #333; border-radius:8px; padding:6px 10px; }
+        .btn { font-size:14px; color:#ffcf7f; background:transparent; border:1px solid #333; padding:6px 10px; border-radius:8px; }
+        .rows { margin-top:14px; }
+        .row { display:grid; grid-template-columns: 60px 1fr 160px; align-items:center; padding:14px 6px; }
         .col.idx { font-size:36px; text-align:left; padding-left:6px; }
         .col.dest { font-size:36px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 8px; }
         .col.eta { font-size:36px; text-align:right; padding-right:6px; }
-        .clock { margin-top:40px; text-align:center; font-size:42px; }
-        .led { font-family: 'DotGothic16', ui-monospace, monospace; letter-spacing: 1px; text-shadow: 0 0 6px rgba(255,154,0,.4); }
-        @media (max-width: 768px){
+        .clock { margin-top:26px; text-align:center; font-size:42px; }
+        .led { font-family: 'LURegular', 'DotGothic16', ui-monospace, monospace; letter-spacing: 1px; text-shadow: 0 0 6px rgba(255,154,0,.35); }
+        @media (max-width: 900px){
           .title{ font-size:40px; }
           .col.idx, .col.dest, .col.eta { font-size:26px; }
           .col.eta{ width:120px; }
           .clock{ font-size:32px; }
+          .row { grid-template-columns: 50px 1fr 120px; }
         }
       `}</style>
     </>
