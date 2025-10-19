@@ -4,7 +4,7 @@ import FullscreenButton from './FullscreenButton';
 export default function HeaderBar({ selected, onRefresh }){
   const title = selected?.displayName || selected?.name || '未选择站点';
   return (
-    <header className="sticky top-0 z-20 bg-neutral-900/90 backdrop-blur mb-6">
+    <header className="sticky top-0 z-20 bg-neutral-900 bg-opacity-90 backdrop-blur mb-6">
       <div className="max-w-5xl mx-auto p-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">伦敦地铁状态</h1>
