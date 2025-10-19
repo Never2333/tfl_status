@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2025-10-19T17:28:09.248380Z",
+  "stations": [
+    {
+      "id": "940GZZLUWLO",
+      "name": "Waterloo",
+      "lines": [
+        "bakerloo",
+        "jubilee",
+        "northern",
+        "waterloo-city"
+      ]
+    },
+    {
+      "id": "940GZZLUPAC",
+      "name": "Paddington",
+      "lines": [
+        "bakerloo",
+        "circle",
+        "district",
+        "elizabeth",
+        "hammersmith-city"
+      ]
+    },
+    {
+      "id": "940GZZLUKSX",
+      "name": "King's Cross St. Pancras",
+      "lines": [
+        "circle",
+        "hammersmith-city",
+        "metropolitan",
+        "northern",
+        "piccadilly",
+        "victoria"
+      ]
+    },
+    {
+      "id": "940GZZLUHSC",
+      "name": "Hammersmith",
+      "lines": [
+        "hammersmith-city",
+        "circle"
+      ]
+    },
+    {
+      "id": "940GZZLUHSD",
+      "name": "Hammersmith",
+      "lines": [
+        "piccadilly",
+        "district"
+      ]
+    },
+    {
+      "id": "940GZZLULVT",
+      "name": "Liverpool Street",
+      "lines": [
+        "central",
+        "circle",
+        "hammersmith-city",
+        "metropolitan",
+        "elizabeth"
+      ]
+    },
+    {
+      "id": "940GZZLUOXC",
+      "name": "Oxford Circus",
+      "lines": [
+        "bakerloo",
+        "central",
+        "victoria"
+      ]
+    },
+    {
+      "id": "940GZZLUBST",
+      "name": "Baker Street",
+      "lines": [
+        "bakerloo",
+        "circle",
+        "hammersmith-city",
+        "jubilee",
+        "metropolitan"
+      ]
+    }
+  ]
+}

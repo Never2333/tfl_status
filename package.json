@@ -1,7 +1,10 @@
 {
   "name": "tfl-departure-board",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "prebuild": "node scripts/build-offline.js",
     "build": "next build",

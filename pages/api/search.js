@@ -40,7 +40,8 @@ export default async function handler(req, res){
   q = q.replace(/[’‘]/g, "'").replace(/\s+/g,' ').trim();
   if (q.length < 2){ res.setHeader('Cache-Control','no-store'); return res.status(200).json({ results: [] }); }
 
-  const list = (OFFLINE.stations||OFFLINE||[]).map(s => ({ ...s, name: cleanName(s.name) }));
+  const src = (OFFLINE.stations||OFFLINE||[]);
+  const list = src.map(s => ({ ...s, name: cleanName(s.name) }));
 
   const ranked = list
     .map(s => ({ s, sc: score(s.name, q) }))
